@@ -42,6 +42,7 @@ io.on("connection", (socket) => {
 
       socket.emit("userId", socket.id);
 
+      console.log("Busra");
       io.emit(
         "onlineUsers",
         users.map((user) => user.username)
