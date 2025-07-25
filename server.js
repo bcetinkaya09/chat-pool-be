@@ -19,7 +19,7 @@ const io = new Server(server, {
 
 app.use(cors());
 
-let users = [];
+let rooms = {};
 
 function handleUsername(socket, username, callback) {
   if (!username || username.trim() === "") {
@@ -36,44 +36,52 @@ function handleUsername(socket, username, callback) {
 io.on("connection", (socket) => {
   console.log("Bir kullanıcı bağlandı!");
 
-  socket.on("join", (username) => {
+  socket.on("joinRoom", ({ username, room }) => {
     handleUsername(socket, username, () => {
-      users.push({ id: socket.id, username });
+      socket.join(room);
+      socket.room = room;
+      // Odaya kullanıcı ekle
+      if (!rooms[room]) rooms[room] = [];
+      rooms[room].push({ id: socket.id, username });
 
       socket.emit("userId", socket.id);
-
-      console.log("Busra");
-      io.emit(
+      // Sadece odaya online kullanıcıları gönder
+      io.to(room).emit(
         "onlineUsers",
-        users.map((user) => user.username)
+        rooms[room].map((user) => user.username)
       );
-
-      io.emit("message", { type: "system", text: `${username} katıldı!` });
+      io.to(room).emit("message", { type: "system", text: `${username} katıldı!` });
     });
   });
 
   socket.on("chatMessage", (msg) => {
     handleUsername(socket, socket.username, () => {
-      io.emit("message", {
-        user: { id: socket.id, username: socket.username },
-        text: msg,
-      });
+      const room = socket.room;
+      if (room) {
+        io.to(room).emit("message", {
+          user: { id: socket.id, username: socket.username },
+          text: msg,
+        });
+      }
     });
   });
 
   socket.on("disconnect", () => {
-    if (socket.username) {
-      users = users.filter((user) => user.id !== socket.id);
-
-      io.emit(
+    const room = socket.room;
+    if (socket.username && room && rooms[room]) {
+      rooms[room] = rooms[room].filter((user) => user.id !== socket.id);
+      io.to(room).emit(
         "onlineUsers",
-        users.map((user) => user.username)
+        rooms[room].map((user) => user.username)
       );
-
-      io.emit("message", {
+      io.to(room).emit("message", {
         type: "system",
         text: `${socket.username} ayrıldı.`,
       });
+      // Oda boşsa sil
+      if (rooms[room].length === 0) {
+        delete rooms[room];
+      }
     }
   });
 });
