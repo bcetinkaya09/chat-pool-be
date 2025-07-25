@@ -37,24 +37,25 @@ io.on("connection", (socket) => {
   console.log("Bir kullanıcı bağlandı!");
 
   socket.on("getRooms", () => {
-    socket.emit("roomsList", Object.keys(rooms));
+    socket.emit("roomsList", Object.keys(rooms)); // We'll update this after normalizing room names
   });
 
   socket.on("joinRoom", ({ username, room }) => {
+    const normalizedRoom = room.toLowerCase();
     handleUsername(socket, username, () => {
-      socket.join(room);
-      socket.room = room;
+      socket.join(normalizedRoom);
+      socket.room = normalizedRoom;
       // Odaya kullanıcı ekle
-      if (!rooms[room]) rooms[room] = [];
-      rooms[room].push({ id: socket.id, username });
+      if (!rooms[normalizedRoom]) rooms[normalizedRoom] = [];
+      rooms[normalizedRoom].push({ id: socket.id, username });
 
       socket.emit("userId", socket.id);
       // Sadece odaya online kullanıcıları gönder
-      io.to(room).emit(
+      io.to(normalizedRoom).emit(
         "onlineUsers",
-        rooms[room].map((user) => user.username)
+        rooms[normalizedRoom].map((user) => user.username)
       );
-      io.to(room).emit("message", { type: "system", text: `${username} katıldı!` });
+      io.to(normalizedRoom).emit("message", { type: "system", text: `${username} katıldı!` });
     });
   });
 
