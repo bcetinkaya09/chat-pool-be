@@ -63,9 +63,12 @@ io.on("connection", (socket) => {
     handleUsername(socket, socket.username, () => {
       const room = socket.room;
       if (room) {
+        const now = new Date();
+        const time = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
         io.to(room).emit("message", {
           user: { id: socket.id, username: socket.username },
           text: msg,
+          time, // saat:dakika
         });
       }
     });
