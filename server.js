@@ -20,6 +20,8 @@ const io = new Server(server, {
 app.use(cors());
 
 let rooms = {};
+// Oda bazlı mesajları saklamak için
+let roomMessages = {};
 
 function handleUsername(socket, username, callback) {
   if (!username || username.trim() === "") {
@@ -48,7 +50,8 @@ io.on("connection", (socket) => {
       // Odaya kullanıcı ekle
       if (!rooms[normalizedRoom]) rooms[normalizedRoom] = [];
       rooms[normalizedRoom].push({ id: socket.id, username });
-
+      // Oda mesajları başlat
+      if (!roomMessages[normalizedRoom]) roomMessages[normalizedRoom] = [];
       socket.emit("userId", socket.id);
       // Sadece odaya online kullanıcıları gönder
       io.to(normalizedRoom).emit(
@@ -56,6 +59,8 @@ io.on("connection", (socket) => {
         rooms[normalizedRoom].map((user) => user.username)
       );
       io.to(normalizedRoom).emit("message", { type: "system", text: `${username} katıldı!` });
+      // Odaya mevcut mesajları gönder
+      socket.emit("allMessages", roomMessages[normalizedRoom]);
     });
   });
 
@@ -65,13 +70,27 @@ io.on("connection", (socket) => {
       if (room) {
         const now = new Date();
         const time = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
-        io.to(room).emit("message", {
+        const messageObj = {
           user: { id: socket.id, username: socket.username },
           text: msg,
-          time, // saat:dakika
-        });
+          time,
+          id: `${socket.id}-${Date.now()}` // benzersiz id
+        };
+        // Mesajı kaydet
+        if (!roomMessages[room]) roomMessages[room] = [];
+        roomMessages[room].push(messageObj);
+        io.to(room).emit("message", messageObj);
       }
     });
+  });
+
+  // Mesaj silme event'i
+  socket.on("deleteMessage", ({ room, messageId }) => {
+    if (roomMessages[room]) {
+      roomMessages[room] = roomMessages[room].filter((msg) => msg.id !== messageId);
+      // Güncel mesaj listesini odaya yayınla
+      io.to(room).emit("allMessages", roomMessages[room]);
+    }
   });
 
   socket.on("disconnect", () => {
@@ -89,6 +108,7 @@ io.on("connection", (socket) => {
       // Oda boşsa sil
       if (rooms[room].length === 0) {
         delete rooms[room];
+        delete roomMessages[room];
       }
     }
   });
