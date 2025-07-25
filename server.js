@@ -36,6 +36,10 @@ function handleUsername(socket, username, callback) {
 io.on("connection", (socket) => {
   console.log("Bir kullanıcı bağlandı!");
 
+  socket.on("getRooms", () => {
+    socket.emit("roomsList", Object.keys(rooms));
+  });
+
   socket.on("joinRoom", ({ username, room }) => {
     handleUsername(socket, username, () => {
       socket.join(room);
