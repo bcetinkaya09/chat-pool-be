@@ -22,6 +22,7 @@ app.use(cors());
 let rooms = {};
 // Oda bazlı mesajları saklamak için
 let roomMessages = {};
+let roomPinnedMessage = {};
 
 function handleUsername(socket, username, callback) {
   if (!username || username.trim() === "") {
@@ -61,6 +62,8 @@ io.on("connection", (socket) => {
       io.to(normalizedRoom).emit("message", { type: "system", text: `${username} katıldı!` });
       // Odaya mevcut mesajları gönder
       socket.emit("allMessages", roomMessages[normalizedRoom]);
+      // Sabitli mesajı gönder
+      socket.emit("pinnedMessage", roomPinnedMessage[normalizedRoom] || null);
     });
   });
 
@@ -93,6 +96,25 @@ io.on("connection", (socket) => {
     }
   });
 
+  // Mesaj sabitleme
+  socket.on("pinMessage", ({ room, messageId }) => {
+    if (roomMessages[room]) {
+      const msg = roomMessages[room].find((m) => m.id === messageId);
+      if (msg) {
+        roomPinnedMessage[room] = msg;
+        io.to(room).emit("pinnedMessage", msg);
+      }
+    }
+  });
+
+  // Sabitli mesajı kaldırma
+  socket.on("unpinMessage", ({ room }) => {
+    if (roomPinnedMessage[room]) {
+      roomPinnedMessage[room] = null;
+      io.to(room).emit("pinnedMessage", null);
+    }
+  });
+
   socket.on("disconnect", () => {
     const room = socket.room;
     if (socket.username && room && rooms[room]) {
@@ -109,6 +131,7 @@ io.on("connection", (socket) => {
       if (rooms[room].length === 0) {
         delete rooms[room];
         delete roomMessages[room];
+        delete roomPinnedMessage[room];
       }
     }
   });
