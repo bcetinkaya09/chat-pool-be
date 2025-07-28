@@ -88,6 +88,19 @@ io.on("connection", (socket) => {
         if (!roomMessages[room]) roomMessages[room] = [];
         roomMessages[room].push(messageObj);
         io.to(room).emit("message", messageObj);
+        // Mention kontrolü
+        const mentionRegex = /@([\wçğıöşüÇĞİÖŞÜ]+)/gi;
+        let match;
+        const notified = new Set();
+        while ((match = mentionRegex.exec(msg))) {
+          const mentioned = match[1];
+          // Oda kullanıcıları arasında var mı?
+          const userObj = rooms[room]?.find(u => u.username === mentioned);
+          if (userObj && userObj.id !== socket.id && !notified.has(userObj.id)) {
+            io.to(userObj.id).emit("mentionNotify", { text: `@${mentioned} olarak bir mesajda etiketlendiniz!` });
+            notified.add(userObj.id);
+          }
+        }
       }
     });
   });
