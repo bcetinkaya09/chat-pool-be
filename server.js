@@ -59,6 +59,11 @@ io.on("connection", (socket) => {
         "onlineUsers",
         rooms[normalizedRoom].map((user) => user.username)
       );
+      // id-isim eşleşmesi de gönder
+      io.to(normalizedRoom).emit(
+        "onlineUsersWithIds",
+        rooms[normalizedRoom]
+      );
       io.to(normalizedRoom).emit("message", { type: "system", text: `${username} katıldı!` });
       // Odaya mevcut mesajları gönder
       socket.emit("allMessages", roomMessages[normalizedRoom]);
@@ -77,14 +82,26 @@ io.on("connection", (socket) => {
           user: { id: socket.id, username: socket.username },
           text: msg,
           time,
-          id: `${socket.id}-${Date.now()}` // benzersiz id
+          id: `${socket.id}-${Date.now()}`,
+          readBy: [socket.id] // Mesajı gönderen otomatik okumuş olur
         };
-        // Mesajı kaydet
         if (!roomMessages[room]) roomMessages[room] = [];
         roomMessages[room].push(messageObj);
         io.to(room).emit("message", messageObj);
       }
     });
+  });
+
+  // Okundu bilgisi event'i
+  socket.on("messageRead", ({ room, messageId, userId }) => {
+    if (roomMessages[room]) {
+      const msg = roomMessages[room].find((m) => m.id === messageId);
+      if (msg && !msg.readBy?.includes(userId)) {
+        msg.readBy = msg.readBy || [];
+        msg.readBy.push(userId);
+        io.to(room).emit("messageReadUpdate", { messageId, userId });
+      }
+    }
   });
 
   // Mesaj silme event'i
@@ -122,6 +139,10 @@ io.on("connection", (socket) => {
       io.to(room).emit(
         "onlineUsers",
         rooms[room].map((user) => user.username)
+      );
+      io.to(room).emit(
+        "onlineUsersWithIds",
+        rooms[room]
       );
       io.to(room).emit("message", {
         type: "system",
