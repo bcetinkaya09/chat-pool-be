@@ -145,6 +145,20 @@ io.on("connection", (socket) => {
     }
   });
 
+  // Kullanıcı yazıyor event'i
+  socket.on("typing", ({ room, username }) => {
+    if (room && username) {
+      socket.to(room).emit("typing", { username });
+    }
+  });
+
+  // Kullanıcı yazmayı bıraktı event'i
+  socket.on("stopTyping", ({ room, username }) => {
+    if (room && username) {
+      socket.to(room).emit("stopTyping", { username });
+    }
+  });
+
   socket.on("disconnect", () => {
     const room = socket.room;
     if (socket.username && room && rooms[room]) {
