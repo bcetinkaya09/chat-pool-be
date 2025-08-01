@@ -83,7 +83,8 @@ io.on("connection", (socket) => {
           text: msg,
           time,
           id: `${socket.id}-${Date.now()}`,
-          readBy: [socket.id] // Mesajı gönderen otomatik okumuş olur
+          readBy: [socket.id], // Mesajı gönderen otomatik okumuş olur
+          createdAt: Date.now() // Ek zaman damgası
         };
         if (!roomMessages[room]) roomMessages[room] = [];
         roomMessages[room].push(messageObj);
@@ -120,9 +121,42 @@ io.on("connection", (socket) => {
   // Mesaj silme event'i
   socket.on("deleteMessage", ({ room, messageId }) => {
     if (roomMessages[room]) {
-      roomMessages[room] = roomMessages[room].filter((msg) => msg.id !== messageId);
-      // Güncel mesaj listesini odaya yayınla
-      io.to(room).emit("allMessages", roomMessages[room]);
+      const messageIndex = roomMessages[room].findIndex((msg) => msg.id === messageId);
+      if (messageIndex !== -1) {
+        const message = roomMessages[room][messageIndex];
+        // Sadece mesaj sahibi silebilir
+        if (message.user.id === socket.id) {
+          roomMessages[room].splice(messageIndex, 1);
+          // Güncel mesaj listesini odaya yayınla
+          io.to(room).emit("allMessages", roomMessages[room]);
+        }
+      }
+    }
+  });
+
+  // Mesaj düzenleme event'i
+  socket.on("editMessage", ({ room, messageId, newText }) => {
+    if (roomMessages[room]) {
+      const message = roomMessages[room].find((msg) => msg.id === messageId);
+      if (message && message.user.id === socket.id) {
+        // Mesajın gönderilme zamanını kontrol et (1 dakika = 60000 ms)
+        const messageTime = message.createdAt || parseInt(message.id.split('-')[1]);
+        const currentTime = Date.now();
+        const timeDifference = currentTime - messageTime;
+        
+        console.log(`Mesaj zamanı: ${messageTime}, Şu anki zaman: ${currentTime}, Fark: ${timeDifference}ms`);
+        
+        if (timeDifference <= 300000) { // 5 dakika içinde (test için)
+          message.text = newText;
+          message.edited = true;
+          message.editTime = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
+          // Güncel mesaj listesini odaya yayınla
+          io.to(room).emit("allMessages", roomMessages[room]);
+        } else {
+          // Zaman aşımı durumunda kullanıcıya hata mesajı gönder
+          socket.emit("editError", { message: `Mesajı düzenlemek için çok geç! Sadece 1 dakika içinde düzenleyebilirsiniz. (Geçen süre: ${Math.floor(timeDifference/1000)} saniye)` });
+        }
+      }
     }
   });
 
